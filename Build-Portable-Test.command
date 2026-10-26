@@ -92,11 +92,17 @@ if [[ -f "$APP/Contents/Resources/ru.lproj/InfoPlist.strings" ]]; then
   plutil -replace CFBundleName -string "NeAntik Unlimited" \
     "$APP/Contents/Resources/ru.lproj/InfoPlist.strings" 2>/dev/null || true
 fi
-# Ad-hoc re-sign: nested browser runtime first, helpers, then the bundle.
-# (Matches the official Dev fast path: deep-sign the runtime, plain-sign
-# the outer app; no entitlements — the official ones are team-bound.)
-codesign --force --deep -s - "$APP/Contents/Resources/NeAntik Browser.app" 2>/dev/null || true
-find "$APP/Contents/Helpers" -type f -perm +111 \
+# The team-bound provisioning profile is invalid under ad-hoc signing and
+# makes AMFI kill the process at launch (SIGKILL) — drop it, like the
+# official Dev fast path effectively does by never embedding one.
+rm -f "$APP/Contents/embedded.provisionprofile"
+# Re-sign strictly inside-out: nested executables, then nested bundles,
+# then the outer bundle (--deep is unreliable for Chromium-sized trees).
+find "$APP" -depth -type f -perm +111 \
+  -exec codesign --force -s - {} \; 2>/dev/null || true
+find "$APP" -depth -type d \
+  \( -name "*.framework" -o -name "*.app" -o -name "*.xpc" \
+     -o -name "*.appex" -o -name "*.bundle" \) \
   -exec codesign --force -s - {} \; 2>/dev/null || true
 codesign --force -s - "$APP"
 codesign --verify --deep --strict "$APP" || {
