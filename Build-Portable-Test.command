@@ -68,17 +68,33 @@ mkdir "$WORK/x"
 unzip -q "$WORK/runtime.zip" -d "$WORK/x"
 APP="$WORK/x/NeAntik.app"
 cp "$BIN" "$APP/Contents/MacOS/NeAntik"
-plutil -replace CFBundleIdentifier -string app.neantik.desktop.unlimited \
+# app.neantik.desktop.dev is the code-recognized isolated environment:
+# separate Application Support dir + own Keychain service, so the test
+# build never touches a real NeAntik installation on the same Mac.
+plutil -replace CFBundleIdentifier -string app.neantik.desktop.dev \
   "$APP/Contents/Info.plist"
 plutil -replace CFBundleDisplayName -string "NeAntik Unlimited" \
   "$APP/Contents/Info.plist"
+plutil -replace CFBundleName -string "NeAntik Unlimited" \
+  "$APP/Contents/Info.plist"
 plutil -replace CFBundleShortVersionString -string "0.9.0-unlimited" \
   "$APP/Contents/Info.plist"
+# Keep localized display name consistent too.
+if [[ -f "$APP/Contents/Resources/ru.lproj/InfoPlist.strings" ]]; then
+  plutil -replace CFBundleDisplayName -string "NeAntik Unlimited" \
+    "$APP/Contents/Resources/ru.lproj/InfoPlist.strings" 2>/dev/null || true
+  plutil -replace CFBundleName -string "NeAntik Unlimited" \
+    "$APP/Contents/Resources/ru.lproj/InfoPlist.strings" 2>/dev/null || true
+fi
 # Ad-hoc re-sign: nested browser runtime first, helpers, then the bundle.
+# (Matches the official Dev fast path: deep-sign the runtime, plain-sign
+# the outer app; no entitlements — the official ones are team-bound.)
 codesign --force --deep -s - "$APP/Contents/Resources/NeAntik Browser.app" 2>/dev/null || true
 find "$APP/Contents/Helpers" -type f -perm +111 \
   -exec codesign --force -s - {} \; 2>/dev/null || true
-codesign --force -s - --entitlements "$PROJECT_DIR/Resources/NeAntik.entitlements" "$APP"
+codesign --force -s - "$APP"
+codesign --verify --deep --strict "$APP" || {
+  echo "✗ فشل التحقق من التوقيع ad-hoc." >&2; exit 1; }
 
 # --- 4. Deliver ---------------------------------------------------------------
 echo "[4/4] أنسخ النتيجة إلى dist/…"
