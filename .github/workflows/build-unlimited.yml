@@ -66,14 +66,25 @@ jobs:
           codesign --verify --deep --strict "$APP" || \
             echo "::warning::ad-hoc strict verify failed (expected for rebuilt helper set)"
 
-      - name: Smoke-launch the manager UI
+      - name: Launch the manager UI on the M1 runner and screenshot it
         run: |
           set -euo pipefail
           APP=extracted/NeAntik.app
-          # Launch without the browser runtime; the manager window must appear.
-          NEANTIK_UI_SMOKE=1 timeout 20 "$APP/Contents/MacOS/NeAntik" \
-            --ui-smoke 2>&1 | head -20 || true
-          echo "Manager binary executed without immediate dyld/arch failure."
+          NEANTIK_UI_SMOKE_COLOR_SCHEME=light \
+            "$APP/Contents/MacOS/NeAntik" >manager.log 2>&1 &
+          PID=$!
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "PASS: manager process is alive after 15s (pid $PID)"
+          else
+            echo "::error::manager exited during launch"
+            cat manager.log || true
+            exit 1
+          fi
+          screencapture -x manager-screenshot.png || true
+          kill "$PID" 2>/dev/null || true
+          echo "manager.log (first 30 lines):"
+          head -30 manager.log || true
 
       - name: Package portable artifact (no install needed)
         run: |
@@ -98,4 +109,5 @@ jobs:
             NeAntik-Unlimited-portable-arm64.zip.sha256
             NeAntik-Unlimited-portable-arm64.dmg
             NeAntik-Unlimited-portable-arm64.dmg.sha256
+            manager-screenshot.png
           retention-days: 30
