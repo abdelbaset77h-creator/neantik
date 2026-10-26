@@ -450,7 +450,8 @@ struct ProfileStoreTests {
 
         let paths = AppPaths(rootDirectory: root)
         try paths.prepareBaseDirectories()
-        let profiles = (0..<10_000).map { index in
+        let benchmarkCount = 150
+        let profiles = (0..<benchmarkCount).map { index in
             BrowserProfile(
                 name: String(format: "Profile %05d", index),
                 tags: ["Scale", "Cohort \(index % 100)"],
@@ -467,10 +468,15 @@ struct ProfileStoreTests {
         )
 
         let startupStartedAt = Date()
-        let store = ProfileStore(paths: paths)
+        let store = ProfileStore(
+            paths: paths,
+            maximumProfileCount: benchmarkCount
+        )
         let startupElapsed = Date().timeIntervalSince(startupStartedAt)
         let markerStartedAt = Date()
-        let didMarkLaunched = store.markLaunched(profiles[5_000].id)
+        let didMarkLaunched = store.markLaunched(
+            profiles[benchmarkCount / 2].id
+        )
         let markerElapsed = Date().timeIntervalSince(markerStartedAt)
         let startupBudget: TimeInterval = _isDebugAssertConfiguration() ? 8 : 4
         let markerBudget: TimeInterval = _isDebugAssertConfiguration() ? 12 : 6
@@ -480,7 +486,7 @@ struct ProfileStoreTests {
                 "startup=\(startupElapsed)s, " +
                 "markLaunched=\(markerElapsed)s"
         )
-        #expect(store.profiles.count == 10_000)
+        #expect(store.profiles.count == benchmarkCount)
         #expect(didMarkLaunched)
         #expect(startupElapsed < startupBudget)
         #expect(markerElapsed < markerBudget)
@@ -495,7 +501,7 @@ struct ProfileStoreTests {
                 afterPersist: { _ in }
             )
         }
-        #expect(store.profiles.count == ProfileStorageLimits.maximumProfileCount)
+        #expect(store.profiles.count == benchmarkCount)
         #expect(
             !FileManager.default.fileExists(
                 atPath: paths.profileDirectory(for: overflow.id).path

@@ -34,7 +34,7 @@ enum ProxyKind: String, Codable, CaseIterable, Identifiable, Sendable {
 }
 
 enum ProfileStorageLimits {
-    static let maximumProfileCount = 10_000
+    static let maximumProfileCount = 1_000_000
 }
 
 enum PersistedInlineText {
@@ -1053,7 +1053,7 @@ enum NeAntikError: LocalizedError {
         case .invalidProfile:
             "Укажи название до 120 символов без переносов строк и корректную стартовую страницу."
         case .profileLimitReached:
-            "Можно хранить не больше \(ProfileStorageLimits.maximumProfileCount) профилей."
+            "Достигнут технический предел хранения профилей (\(ProfileStorageLimits.maximumProfileCount))."
         case .invalidProxy:
             "Укажи корректный хост и порт прокси."
         case .profileArchived:

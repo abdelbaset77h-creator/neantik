@@ -70,7 +70,7 @@ for verification results and downloadable files.
   configuration is copied too;
 - supports direct connections, authenticated HTTP/HTTPS through Chromium's
   native prompt, and SOCKS5 without credentials;
-- locally parses a proxy list and creates up to 100 separate profiles without
+- locally parses a proxy list and creates up to 1,000,000 separate profiles without
   automatic network requests; a failed import does not save profiles, and any
   unfinished password cleanup is marked for retry on the next launch;
 - keeps proxy passwords in macOS Keychain;

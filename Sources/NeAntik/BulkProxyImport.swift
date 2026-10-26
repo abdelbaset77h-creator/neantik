@@ -134,8 +134,8 @@ struct BulkProxyImportPreview: Equatable, Sendable {
 }
 
 enum BulkProxyImportParser {
-    static let maximumEntries = 100
-    static let maximumInputBytes = 512 * 1_024
+    static let maximumEntries = 10_000
+    static let maximumInputBytes = 16 * 1_024 * 1_024
 
     static func baseNameValidationMessage(_ value: String) -> String? {
         if value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {

@@ -31,6 +31,7 @@ final class ProfileStore: ObservableObject {
     private(set) var profileListRevision: UInt64 = 0
 
     let paths: AppPaths
+    private let maximumProfileCount: Int
     private var storageIsAvailable = true
     private var organizationStorageIsAvailable = true
     private let trashDirectory: (URL) throws -> URL
@@ -41,6 +42,7 @@ final class ProfileStore: ObservableObject {
 
     init(
         paths: AppPaths = AppPaths(),
+        maximumProfileCount: Int = ProfileStorageLimits.maximumProfileCount,
         trashDirectory: ((URL) throws -> URL)? = nil,
         restoreTrashedDirectory: ((URL, URL) throws -> Void)? = nil,
         beforeDeleteMetadataPersist: @escaping () throws -> Void = {},
@@ -48,6 +50,7 @@ final class ProfileStore: ObservableObject {
         beforeOrganizationPersist: @escaping () throws -> Void = {}
     ) {
         self.paths = paths
+        self.maximumProfileCount = maximumProfileCount
         self.trashDirectory =
             trashDirectory ?? Self.moveDirectoryToTrash
         self.restoreTrashedDirectory =
@@ -66,7 +69,8 @@ final class ProfileStore: ObservableObject {
                     paths: paths
                 )
                 let normalized = try Self.normalizedForIsolation(
-                    load.profiles
+                    load.profiles,
+                    maximumProfileCount: maximumProfileCount
                 )
                 profiles = normalized.profiles
                 if FileManager.default.fileExists(
@@ -233,7 +237,8 @@ final class ProfileStore: ObservableObject {
             try requireStorage()
             try Self.requireInsertionCapacity(
                 existingCount: profiles.count,
-                additionalCount: additionalCount
+                additionalCount: additionalCount,
+                maximum: maximumProfileCount
             )
         }
     }
@@ -450,7 +455,8 @@ final class ProfileStore: ObservableObject {
             let previousProfiles = profiles
             try Self.requireInsertionCapacity(
                 existingCount: previousProfiles.count,
-                additionalCount: requestedProfiles.count
+                additionalCount: requestedProfiles.count,
+                maximum: maximumProfileCount
             )
             let existingIDs = Set(previousProfiles.map(\.id))
             var requestedIDs = Set<UUID>()
@@ -601,7 +607,8 @@ final class ProfileStore: ObservableObject {
         } else {
             try Self.requireInsertionCapacity(
                 existingCount: profiles.count,
-                additionalCount: 1
+                additionalCount: 1,
+                maximum: maximumProfileCount
             )
             guard value.revision == 0 else {
                 throw BrowserProfileRevisionConflictError(
@@ -1260,9 +1267,10 @@ final class ProfileStore: ObservableObject {
     }
 
     private static func normalizedForIsolation(
-        _ profiles: [BrowserProfile]
+        _ profiles: [BrowserProfile],
+        maximumProfileCount: Int = ProfileStorageLimits.maximumProfileCount
     ) throws -> (profiles: [BrowserProfile], changed: Bool) {
-        guard profiles.count <= ProfileStorageLimits.maximumProfileCount else {
+        guard profiles.count <= maximumProfileCount else {
             throw NeAntikError.profileLimitReached
         }
         var values = profiles
@@ -1305,9 +1313,9 @@ final class ProfileStore: ObservableObject {
 
     private static func requireInsertionCapacity(
         existingCount: Int,
-        additionalCount: Int
+        additionalCount: Int,
+        maximum: Int = ProfileStorageLimits.maximumProfileCount
     ) throws {
-        let maximum = ProfileStorageLimits.maximumProfileCount
         guard existingCount >= 0,
               existingCount <= maximum,
               additionalCount >= 0,

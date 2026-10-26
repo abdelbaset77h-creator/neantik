@@ -398,7 +398,8 @@ struct BulkProxyImportTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let paths = AppPaths(rootDirectory: root)
         try paths.prepareBaseDirectories()
-        let profiles = (0..<ProfileStorageLimits.maximumProfileCount).map {
+        let capacityTestLimit = 150
+        let profiles = (0..<capacityTestLimit).map {
             index in
             BrowserProfile(
                 name: String(format: "Profile %05d", index),
@@ -411,7 +412,10 @@ struct BulkProxyImportTests {
             encoder.encode(profiles),
             to: paths.profilesFile
         )
-        let store = ProfileStore(paths: paths)
+        let store = ProfileStore(
+            paths: paths,
+            maximumProfileCount: capacityTestLimit
+        )
         let backend = BulkImportKeychainBackend()
         let keychain = KeychainStore(
             backend: backend,
@@ -433,7 +437,7 @@ struct BulkProxyImportTests {
             )
         }
 
-        #expect(store.profiles.count == ProfileStorageLimits.maximumProfileCount)
+        #expect(store.profiles.count == capacityTestLimit)
         #expect(backend.upsertAttemptCount == 0)
         #expect(backend.storedValueCount == 0)
         #expect(try paths.pendingCredentialStagingProfileIDs().isEmpty)
