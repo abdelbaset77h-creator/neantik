@@ -101,7 +101,7 @@ jobs:
           shasum -a 256 NeAntik-Unlimited-portable-arm64.dmg \
             > NeAntik-Unlimited-portable-arm64.dmg.sha256
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: NeAntik-Unlimited-portable-arm64
           path: |
