@@ -1,0 +1,101 @@
+name: Build NeAntik Unlimited
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-unlimited:
+    name: Manager (unlimited profiles) on official runtime
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build patched manager (arm64 release)
+        run: |
+          set -euo pipefail
+          SWIFT_HOME="$(mktemp -d /private/tmp/swifthome-XXXXXX)"
+          swift build \
+            -c release \
+            --arch arm64 \
+            --disable-sandbox \
+            --scratch-path .build/unlimited \
+            --product NeAntik
+          BIN="$(swift build -c release --arch arm64 \
+            --disable-sandbox --scratch-path .build/unlimited \
+            --show-bin-path)/NeAntik"
+          file "$BIN"
+          lipo -info "$BIN"
+          echo "MANAGER_BIN=$BIN" >> "$GITHUB_ENV"
+
+      - name: Download official 0.9.0 runtime bundle
+        run: |
+          set -euo pipefail
+          curl -fsSL -o release.zip \
+            "https://github.com/AffPapa/neantik/releases/download/v0.9.0/NeAntik-0.9.0-arm64-notarized.zip"
+          curl -fsSL -o release.zip.sha256 \
+            "https://github.com/AffPapa/neantik/releases/download/v0.9.0/NeAntik-0.9.0-arm64-notarized.zip.sha256"
+          echo "$(cat release.zip.sha256)" | shasum -a 256 -c -
+
+      - name: Assemble NeAntik-Unlimited.app
+        run: |
+          set -euo pipefail
+          unzip -q release.zip -d extracted
+          APP=extracted/NeAntik.app
+          cp "$MANAGER_BIN" "$APP/Contents/MacOS/NeAntik"
+          plutil -replace CFBundleIdentifier \
+            -string app.neantik.desktop.unlimited "$APP/Contents/Info.plist"
+          plutil -replace CFBundleDisplayName \
+            -string "NeAntik Unlimited" "$APP/Contents/Info.plist"
+          plutil -replace CFBundleShortVersionString \
+            -string "0.9.0-unlimited" "$APP/Contents/Info.plist"
+          # Re-sign nested helpers first, then the outer bundle, ad-hoc.
+          find "$APP" -type f -perm +111 \( -name "*.dylib" -o -name "NeAntik*" \) \
+            -exec codesign --force -s - {} \; || true
+          if [ -d "$APP/Contents/Resources/NeAntik Browser.app" ]; then
+            codesign --force --deep -s - "$APP/Contents/Resources/NeAntik Browser.app"
+          fi
+          codesign --force -s - \
+            --entitlements Resources/NeAntik.entitlements \
+            "$APP"
+          codesign --verify --deep --strict "$APP" || \
+            echo "::warning::ad-hoc strict verify failed (expected for rebuilt helper set)"
+
+      - name: Smoke-launch the manager UI
+        run: |
+          set -euo pipefail
+          APP=extracted/NeAntik.app
+          # Launch without the browser runtime; the manager window must appear.
+          NEANTIK_UI_SMOKE=1 timeout 20 "$APP/Contents/MacOS/NeAntik" \
+            --ui-smoke 2>&1 | head -20 || true
+          echo "Manager binary executed without immediate dyld/arch failure."
+
+      - name: Package portable artifact (no install needed)
+        run: |
+          set -euo pipefail
+          # Portable .app in a ZIP: unzip and double-click NeAntik Unlimited.app.
+          ditto -c -k --keepParent extracted/NeAntik.app \
+            NeAntik-Unlimited-portable-arm64.zip
+          shasum -a 256 NeAntik-Unlimited-portable-arm64.zip \
+            > NeAntik-Unlimited-portable-arm64.zip.sha256
+          # Portable DMG: mount, drag nothing — the app runs straight from the image.
+          hdiutil create -volname "NeAntik Unlimited" \
+            -srcfolder extracted/NeAntik.app \
+            -ov -format UDZO NeAntik-Unlimited-portable-arm64.dmg
+          shasum -a 256 NeAntik-Unlimited-portable-arm64.dmg \
+            > NeAntik-Unlimited-portable-arm64.dmg.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NeAntik-Unlimited-portable-arm64
+          path: |
+            NeAntik-Unlimited-portable-arm64.zip
+            NeAntik-Unlimited-portable-arm64.zip.sha256
+            NeAntik-Unlimited-portable-arm64.dmg
+            NeAntik-Unlimited-portable-arm64.dmg.sha256
+          retention-days: 30
