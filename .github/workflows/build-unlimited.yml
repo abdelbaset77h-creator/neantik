@@ -40,7 +40,17 @@ jobs:
             "https://github.com/AffPapa/neantik/releases/download/v0.9.0/NeAntik-0.9.0-arm64-notarized.zip"
           curl -fsSL -o release.zip.sha256 \
             "https://github.com/AffPapa/neantik/releases/download/v0.9.0/NeAntik-0.9.0-arm64-notarized.zip.sha256"
-          echo "$(cat release.zip.sha256)" | shasum -a 256 -c -
+          # The upstream .sha256 embeds the original filename; compare the
+          # digests directly since we saved the download under release.zip.
+          ACTUAL="$(shasum -a 256 release.zip | awk '{print $1}')"
+          EXPECTED="$(awk '{print $1}' release.zip.sha256)"
+          echo "expected: $EXPECTED"
+          echo "actual:   $ACTUAL"
+          if [[ "$ACTUAL" != "$EXPECTED" ]]; then
+            echo "::error::runtime SHA-256 mismatch"
+            exit 1
+          fi
+          echo "runtime SHA-256 verified."
 
       - name: Assemble NeAntik-Unlimited.app
         run: |

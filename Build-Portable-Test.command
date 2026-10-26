@@ -59,8 +59,14 @@ echo "✓ $BIN"
 # --- 2. Fetch the official runtime -------------------------------------------
 echo "[2/4] أنزّل runtime Chromium الرسمي (180 ميجا، مرة واحدة)…"
 curl -fL --progress-bar -o "$WORK/runtime.zip" "$RUNTIME_URL"
-echo "$RUNTIME_SHA  $WORK/runtime.zip" | shasum -a 256 -c - || {
-  echo "✗ فشل التحقق من بصمة runtime." >&2; exit 1; }
+ACTUAL_SHA="$(shasum -a 256 "$WORK/runtime.zip" | awk '{print $1}')"
+if [[ "$ACTUAL_SHA" != "$RUNTIME_SHA" ]]; then
+  echo "✗ فشل التحقق من بصمة runtime." >&2
+  echo "  expected: $RUNTIME_SHA" >&2
+  echo "  actual:   $ACTUAL_SHA" >&2
+  exit 1
+fi
+echo "✓ تحققت بصمة runtime."
 
 # --- 3. Assemble the portable app -------------------------------------------
 echo "[3/4] أجمّع NeAntik-Unlimited.app…"
